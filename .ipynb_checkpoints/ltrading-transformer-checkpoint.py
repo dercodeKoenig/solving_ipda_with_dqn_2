@@ -16,6 +16,21 @@ from tqdm import tqdm
 import random
 import cv2
 import pickle
+
+name = "dqn_trading_transformer"
+resume = True
+
+warmup_parallel = 4
+train_parallel = 4
+warmup_steps = 1000
+
+lr = 0.0002
+memory_size = 32000
+gamma = 0.95
+exploration = 0.02
+target_model_sync = 250
+batch_size = 32
+
 dlen = 120
 pos_size = 0.05 * 100000
 comm = 15/100000
@@ -24,6 +39,10 @@ res_high = 100
 
 # In[2]:
 
+
+if not os.path.exists("logs"):
+    os.mkdir("logs")
+    print("created ./logs")
 
 def Load(file):
     f = open(file, "rb")
@@ -645,21 +664,20 @@ class DQNAgent:
 # In[9]:
 
 
-resume = True
-opt = tf.keras.optimizers.Adam(0.0002)
+opt = tf.keras.optimizers.Adam(lr)
 
-name = "dqn_trading_transformer"
+
 log_folder = "./"
 
 agent = DQNAgent(
     model = model, 
     n_actions = 2, 
-    memory_size = 32000, 
-    gamma=0.95,
+    memory_size = memory_size, 
+    gamma=gamma,
     optimizer = opt,
-    batch_size = 32, 
-    target_model_sync = 250,
-    exploration = 0.02,
+    batch_size = batch_size, 
+    target_model_sync = target_model_sync,
+    exploration = exploration,
     name=log_folder+name+".h5")
 
 if resume:
@@ -670,9 +688,9 @@ if resume:
 # In[10]:
 
 
-x = [environment() for _ in range(4)]
+x = [environment() for _ in range(warmup_parallel)]
 print("warmup...")
-n = 1000
+n = warmup_steps
 agent.train(num_steps = n, envs = x, warmup = n, log_interval = n, train_steps_per_step=1)
 
 
@@ -685,9 +703,9 @@ len(agent.memory)
 # In[ ]:
 
 
-x = [environment() for _ in range(4)]
+x = [environment() for _ in range(train_parallel)]
 print("training...")
-n = 100000000
+n = 1000000000
 agent.train(num_steps = n, envs = x, warmup = 0, log_interval = 1000, train_steps_per_step=1)
 print("done")
 

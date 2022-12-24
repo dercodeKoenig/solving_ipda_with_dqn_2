@@ -40,6 +40,10 @@ res_high = 100
 # In[2]:
 
 
+if not os.path.exists("logs"):
+    os.mkdir("logs")
+    print("created ./logs")
+
 def Load(file):
     f = open(file, "rb")
     obj = pickle.load(f)
