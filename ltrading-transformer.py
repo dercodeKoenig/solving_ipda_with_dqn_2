@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
 import time
 import os
 #os.environ["CUDA_VISIBLE_DEVICES"]="-1"    
@@ -10,16 +16,38 @@ from tqdm import tqdm
 import random
 import cv2
 import pickle
+
+name = "dqn_trading_transformer"
+resume = True
+
+warmup_parallel = 4
+train_parallel = 4
+warmup_steps = 1000
+
+lr = 0.0002
+memory_size = 32000
+gamma = 0.95
+exploration = 0.02
+target_model_sync = 250
+batch_size = 32
+
 dlen = 120
 pos_size = 0.05 * 100000
 comm = 15/100000
 res_high = 100
+
+
+# In[2]:
+
 
 def Load(file):
     f = open(file, "rb")
     obj = pickle.load(f)
     f.close()
     return obj
+
+
+# In[3]:
 
 
 class candle_class:
@@ -205,7 +233,98 @@ class environment:
         return np.array(image).T
         
         
-        
+
+
+# x = environment()
+# m15,h1,h4,d1,pos = x.reset(True)
+# plt.figure(figsize =(15,10))
+# plt.imshow(m15)
+
+# #x = tf.keras.layers.Input(shape = (res_high+1, dlen+1))
+# x = tf.convert_to_tensor(np.array(m15).reshape(1,res_high+1, dlen+1))
+# #x1 = image
+# #x2 = time
+# x1 = x[::, :-1, :-1]
+# x2 = x[::,-1,:-1]
+# current_pos = x[::,::, -1]
+# print(x.shape)
+# print(x1.shape)
+# print(x2.shape)
+# print(current_pos.shape)
+# 
+# plt.figure(figsize =(15,10))
+# plt.imshow(x1.numpy()[0])
+# plt.show()
+# plt.figure(figsize =(15,10))
+# plt.imshow(x2.numpy())
+# plt.show()
+# plt.figure(figsize =(15,10))
+# plt.imshow(current_pos.numpy())
+# plt.show()
+# plt.figure(figsize =(15,10))
+# plt.imshow(x.numpy()[0])
+# plt.show()
+
+# In[6]:
+
+
+class TransformerBlock(tf.keras.layers.Layer):
+    def __init__(self, embed_dim, num_heads, ff_dim, rate=0.05, **kwargs):
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.ff_dim = ff_dim
+        self.rate = rate
+        super(TransformerBlock, self).__init__(**kwargs)
+        self.att = tf.keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
+        self.ffn = tf.keras.Sequential(
+            [tf.keras.layers.Dense(ff_dim, activation="relu"), tf.keras.layers.Dense(embed_dim),]
+        )
+        self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.dropout1 = tf.keras.layers.Dropout(rate)
+        self.dropout2 = tf.keras.layers.Dropout(rate)
+
+    def call(self, inputs, training):
+        attn_output = self.att(inputs, inputs)
+        attn_output = self.dropout1(attn_output, training=training)
+        out1 = self.layernorm1(inputs + attn_output)
+        ffn_output = self.ffn(out1)
+        ffn_output = self.dropout2(ffn_output, training=training)
+        return self.layernorm2(out1 + ffn_output)
+    
+    def get_config(self):
+        base_config = super(TransformerBlock, self).get_config()
+        base_config['embed_dim'] = self.embed_dim
+        base_config['num_heads'] = self.num_heads
+        base_config['ff_dim'] = self.ff_dim
+        base_config['rate'] = self.rate
+        return base_config
+    
+    
+    
+class PositionEmbedding(tf.keras.layers.Layer):
+    def __init__(self, maxlen, embed_dim, **kwargs):
+        self.maxlen = maxlen
+        self.embed_dim = embed_dim
+        super(PositionEmbedding, self).__init__(**kwargs)
+        self.pos_emb = tf.keras.layers.Embedding(input_dim=maxlen, output_dim=embed_dim)
+
+    def call(self, x):
+        maxlen = self.maxlen
+        positions = tf.range(start=0, limit=maxlen, delta=1)
+        positions = self.pos_emb(positions)
+        return x + positions
+    
+    def get_config(self):
+        base_config = super(PositionEmbedding, self).get_config()
+        base_config['maxlen'] = self.maxlen
+        base_config['embed_dim'] = self.embed_dim
+        return base_config
+
+
+# In[7]:
+
+
 
 
 tf.keras.backend.clear_session()
@@ -221,7 +340,7 @@ def proc_chart(x):
     
     x5 = tf.keras.layers.Conv2D(16, 3,activation="relu", padding="same")(x1)
     x1 = tf.keras.layers.Concatenate()([x1,x5])
-    x5 = tf.keras.layers.Conv2D(16, 3,activation="relu", padding="same")(x1)
+    x5 = tf.keras.layers.Conv2D(32, 7,activation="relu", padding="same")(x1)
     x1 = tf.keras.layers.Concatenate()([x1,x5])
 
 
@@ -237,7 +356,12 @@ def proc_chart(x):
     x1 = tf.keras.layers.LeakyReLU()(x1)
     x1 = tf.keras.layers.Dense(64)(x1)
     x1 = tf.keras.layers.LeakyReLU()(x1)
-    x1 = tf.keras.layers.GRU(64, return_sequences = True)(x1)
+    
+    
+    x1 = PositionEmbedding(dlen, x1.shape[-1])(x1)
+    x1 = TransformerBlock(x1.shape[-1], 8, 256)(x1)
+    x1 = TransformerBlock(x1.shape[-1], 8, 256)(x1)
+    x1 = TransformerBlock(x1.shape[-1], 8, 256)(x1)
 
     x1 = tf.keras.layers.Dense(256)(x1)
     x1 = tf.keras.layers.LeakyReLU()(x1)
@@ -282,6 +406,8 @@ if True:
     
 model.summary()
 
+
+# In[8]:
 
 
 #states = m15candles, h1candles, h4candles, d1candles, position
@@ -531,37 +657,105 @@ class DQNAgent:
    
 
 
-    
-resume = True
-opt = tf.keras.optimizers.Adam(0.00002)
+# In[9]:
 
-name = "dqn_trading_1"
+
+opt = tf.keras.optimizers.Adam(lr)
+
+
 log_folder = "./"
 
 agent = DQNAgent(
     model = model, 
     n_actions = 2, 
-    memory_size = 32000, 
-    gamma=0.95,
+    memory_size = memory_size, 
+    gamma=gamma,
     optimizer = opt,
-    batch_size = 64, 
-    target_model_sync = 500,
-    exploration = 0.02,
+    batch_size = batch_size, 
+    target_model_sync = target_model_sync,
+    exploration = exploration,
     name=log_folder+name+".h5")
 
 if resume:
 	print("loading weights...")
 	agent.load_weights()
-    
-    
-x = [environment() for _ in range(4)]
+
+
+# In[10]:
+
+
+x = [environment() for _ in range(warmup_parallel)]
 print("warmup...")
-n = 1000
+n = warmup_steps
 agent.train(num_steps = n, envs = x, warmup = n, log_interval = n, train_steps_per_step=1)
 
 
-x = [environment() for _ in range(4)]
+# In[11]:
+
+
+len(agent.memory)
+
+
+# In[ ]:
+
+
+x = [environment() for _ in range(train_parallel)]
 print("training...")
-n = 100000000
+n = 1000000000
 agent.train(num_steps = n, envs = x, warmup = 0, log_interval = 1000, train_steps_per_step=1)
 print("done")
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
