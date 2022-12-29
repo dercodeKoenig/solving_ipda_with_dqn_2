@@ -148,8 +148,8 @@ class DQNAgent:
 
         num_envs = len(envs)
         self.num_envs = num_envs
-        #states = [x.reset(True) for x in envs]
-        states = [x.reset() for x in envs]
+        states = [x.reset(True) for x in envs]
+        #states = [x.reset() for x in envs]
         
         times= deque(maxlen=10)
         start_time = time.time()
