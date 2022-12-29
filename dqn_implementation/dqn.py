@@ -1,15 +1,15 @@
-#from dqn import DQNAgent
-
 import numpy as np
 import tensorflow as tf
 import os
 from collections import deque
+import random
 import time
 
 use_jit = False
 
 class DQNAgent:
     def __init__(self, model,
+                 strategy,
                  n_actions,
                  memory_size = 100000, 
                  optimizer = tf.keras.optimizers.Adam(0.0005), 
@@ -19,6 +19,8 @@ class DQNAgent:
                  target_model_sync = 1000,
                  exploration = 0.01,
                 ):
+        self.strategy = strategy
+        self.num_replicas = strategy.num_replicas_in_sync
         self.exploration = exploration
         self.gamma = gamma
         self.n_actions = n_actions
@@ -31,6 +33,7 @@ class DQNAgent:
         self.target_model = tf.keras.models.clone_model(self.model)
         self.target_model_sync = target_model_sync
         self.num_model_inputs = len(self.model.inputs)
+        self.num_envs = 0
         if not os.path.exists("logs"):
             os.mkdir("logs")
             print("created ./logs")
@@ -49,12 +52,28 @@ class DQNAgent:
     def model_call(self, x):
         return tf.math.argmax(self.model(x), axis = 1)
     
-    def select_actions(self, states):
-        if np.random.random() < self.exploration: # random action
-            return [np.random.randint(0,self.n_actions) for _ in range(len(states))]
+    def select_actions(self, states_array):
+
+        if random.random() < self.exploration:
+            return tf.random.uniform(shape=[self.num_envs], minval=0, maxval=self.n_actions, dtype=tf.int32).numpy()
+
+        assert self.num_envs % self.strategy.num_replicas_in_sync == 0
+        inc = int(self.num_envs/self.strategy.num_replicas_in_sync)
+
+        self.tn = -inc
+        def vfunc(v):
+            self.tn+=inc
+            values = [states_array[o][self.tn:self.tn+inc] for o in range(self.num_model_inputs)]
+            return values
+
+        inp = (self.strategy.experimental_distribute_values_from_function(vfunc))
+        ret = self.strategy.run(self.model_call, args = (inp,))
         
-        ret = self.model_call(states)
-        return ret.numpy()
+        if self.num_replicas == 1:
+            ret = [x.numpy() for x in ret]
+        else:
+            ret = np.array([x.numpy() for x in ret.values]).reshape(-1)
+        return ret
 
 
         
@@ -89,16 +108,13 @@ class DQNAgent:
         return loss, tf.reduce_mean(estimated_q_values)
     
     
-    def data_get_func(self):
+    def data_get_func(self, _n):
         idx = np.random.randint(0, len(self.memory), self.batch_size)
         sarts_batch = [self.memory[i] for i in idx]
         
         states = [x[0] for x in sarts_batch]
         states_array = []
-        if self.num_model_inputs == 1:
-            states_array = states
-        else:
-            for i in range(self.num_model_inputs):
+        for i in range(self.num_model_inputs):
                 states_array.append(np.array([x[i] for x in states]))
         
                     
@@ -108,16 +124,13 @@ class DQNAgent:
         
         next_states = [x[4] for x in sarts_batch]
         next_states_array = []
-        if self.num_model_inputs == 1:
-            next_states_array = next_states
-        else:
-            for i in range(self.num_model_inputs):
+        for i in range(self.num_model_inputs):
                 next_states_array.append(np.array([x[i] for x in next_states]))
                 
         
         #print(actions)
         masks = np.array(self.m1[actions])
-        return states_array, next_states_array, rewards, terminals, masks
+        return [states_array, next_states_array, rewards, terminals, masks]
 
     def update_parameters(self):
         self.total_steps_trained+=1
@@ -125,15 +138,17 @@ class DQNAgent:
             self.copy_weights()
 
            
-        data = self.data_get_func()
-        result= self.tstep(data)
+
+        distributed_values = (self.strategy.experimental_distribute_values_from_function(self.data_get_func))
+        return  self.strategy.reduce(tf.distribute.ReduceOp.MEAN, self.strategy.run(self.tstep, args = (distributed_values,)), axis = None)
    
-        return  result
     
-    def train(self, num_steps, envs, log_interval = 1000, warmup = 0, use_reward_per_episode = False, render = False):
+    def train(self, num_steps, envs, log_interval = 1000, warmup = 0, render =False):
         self.total_steps_trained = -1
 
         num_envs = len(envs)
+        self.num_envs = num_envs
+        #states = [x.reset(True) for x in envs]
         states = [x.reset() for x in envs]
         
         times= deque(maxlen=10)
@@ -142,8 +157,7 @@ class DQNAgent:
         self.rewards = [0]
         self.losses = [0]
         self.q_v = [0]
-        if use_reward_per_episode:
-            env_reward_counter = [0 for _ in range(len(envs))]
+        
         def save_current_run():
             self.save_weights()
             if len(self.losses) > 0:
@@ -174,15 +188,14 @@ class DQNAgent:
                     progbar = tf.keras.utils.Progbar(log_interval, interval=0.1, stateful_metrics = ["t", "rewards"])
 
                 states_array = []
-                if self.num_model_inputs == 1:
-                    states_array = states
-                else:
-                    for i in range(self.num_model_inputs):
-                        states_array.append(np.array([x[i] for x in states]))
+                for o in range(self.num_model_inputs):
+                        states_array.append(np.array([x[o] for x in states]))
                 
                 
                 actions = self.select_actions(states_array)
-                
+                #if render:
+                #    for o in range(len(envs)):
+                #        envs[o].render()
 
                 sasrt_pairs = []
                 for index in range(num_envs):
@@ -192,29 +205,27 @@ class DQNAgent:
 
                 reward = [x[3] for x in sasrt_pairs]
                 
-                if not use_reward_per_episode:
-                    self.rewards.extend(reward)
-                else:
-                    for o in range(len(env_reward_counter)):
-                        env_reward_counter[o] += reward[o]
+                
+                self.rewards.extend(reward)
                     
                 for index, o in enumerate(sasrt_pairs):
                     #print(o)
                     if o[4] == True:
                         next_states[index] = envs[index].reset()
-                        if use_reward_per_episode:
-                            self.rewards.append(env_reward_counter[index])
-                            env_reward_counter[index] = 0
                     self.observe_sasrt(o[0], o[1], o[2], o[3], o[4])
 
                 states = next_states
-                if render:
-                    [x.render() for x in envs]
-                    
+                
                 if i > warmup:
                         loss, q = self.update_parameters()
-                        self.losses.append(loss.numpy())
-                        self.q_v.append(q.numpy())
+                        if self.num_replicas == 1:
+                            self.losses.append(loss.numpy())
+                            self.q_v.append(q.numpy())
+                        else:
+                            self.losses.append(np.mean([x.numpy() for x in loss.values]))
+                            self.q_v.append(np.mean([x.numpy() for x in q.values]))
+
+
                 else:
                     loss, q = 0, 0
 
