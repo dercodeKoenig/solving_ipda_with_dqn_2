@@ -21,11 +21,13 @@ class candle_class:
         self.t=t
 
 class environment:
-    def __init__(self, data_dir, dlen, res_high):
+    def __init__(self, data_dir, dlen, res_high, comm, pos_size):
         #self.data_dir = "./archive"
         self.data_dir = data_dir
         self.dlen = dlen
         self.res_high = res_high
+        self.comm = comm
+        self.pos_size = pos_size
         #print(self.files)
         #self.reset()
 
@@ -68,14 +70,14 @@ class environment:
             if self.position != 1:
                 self.close()
                 self.position = 1
-                self.balance -= pos_size * comm
+                self.balance -= self.pos_size * self.comm
                 reset_entry_price = True
                 
         if action == 0: # short
             if self.position != -1:
                 self.close()
                 self.position = -1
-                self.balance -= pos_size * comm
+                self.balance -= self.pos_size * self.comm
                 reset_entry_price = True
         
         
@@ -88,7 +90,7 @@ class environment:
         
         percent_change = (current_close - self.entry_price) / self.entry_price
 
-        self.equity = self.balance + percent_change * pos_size * self.position
+        self.equity = self.balance + percent_change * self.pos_size * self.position
         
         reward = self.equity - last_equity
         next_observation = [self.scale_candles(self.m15_candles), self.scale_candles(self.h1_candles), self.scale_candles(self.h4_candles), self.scale_candles(self.d1_candles), self.position]

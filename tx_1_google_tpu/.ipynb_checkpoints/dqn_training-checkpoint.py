@@ -21,6 +21,7 @@ warmup_parallel = 8
 train_parallel = 8
 warmup_steps = 1000
 
+#for dqn
 lr = 0.0001
 memory_size = 20000
 gamma = 0.95
@@ -28,6 +29,7 @@ exploration = 0.02
 target_model_sync = 100
 batch_size = 64
 
+#for environment
 dlen = 120
 pos_size = 0.02 * 100000
 comm = 15/100000
@@ -146,7 +148,7 @@ if resume:
     
     
     
-x = [environment(data_dir) for _ in range(warmup_parallel)]
+x = [environment(data_dir, dlen, res_high, comm, pos_size) for _ in range(warmup_parallel)]
 print("warmup...")
 n = warmup_steps
 agent.train(num_steps = n, envs = x, warmup = n, log_interval = n)
@@ -154,7 +156,7 @@ len(agent.memory)
 
 
 
-x = [environment(data_dir) for _ in range(train_parallel)]
+x = [environment(data_dir, dlen, res_high, comm, pos_size) for _ in range(train_parallel)]
 print("training...")
 n = 1000000000
 agent.train(num_steps = n, envs = x, warmup = 0, log_interval = 1000)
