@@ -21,9 +21,11 @@ class candle_class:
         self.t=t
 
 class environment:
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, dlen, res_high):
         #self.data_dir = "./archive"
         self.data_dir = data_dir
+        self.dlen = dlen
+        self.res_high = res_high
         #print(self.files)
         #self.reset()
 
@@ -39,10 +41,10 @@ class environment:
         if first:
             self.current_index = random.randint(0,len(self.candles)-50000)
             
-        self.d1_candles = deque(maxlen = dlen)
-        self.h4_candles = deque(maxlen = dlen)
-        self.h1_candles = deque(maxlen = dlen)
-        self.m15_candles = deque(maxlen = dlen)
+        self.d1_candles = deque(maxlen = self.dlen)
+        self.h4_candles = deque(maxlen = self.dlen)
+        self.h1_candles = deque(maxlen = self.dlen)
+        self.m15_candles = deque(maxlen = self.dlen)
         
         self.position = 0
         self.entry_price = 0
@@ -140,7 +142,7 @@ class environment:
                     self.d1_candles[-1].l = min(current_candle.l, self.d1_candles[-1].l)
 
             self.current_index+=1    
-            if len(self.d1_candles) == dlen:
+            if len(self.d1_candles) == self.dlen:
                 break
 
         return self.m15_candles,  self.h1_candles, self.h4_candles, self.d1_candles
@@ -148,7 +150,7 @@ class environment:
     
     def scale_candles(self, candles):
         def scale_p(p):
-            return int((p - max_l) / hlrange * (res_high))
+            return int((p - max_l) / hlrange * (self.res_high))
         max_h = 0
         max_l = 1000000
         for i in candles:
@@ -171,7 +173,7 @@ class environment:
         
         image = []
         for i in candles:
-            clm = np.zeros(shape = (res_high+1))
+            clm = np.zeros(shape = (self.res_high+1))
             color = 1 if i.o<i.c else -1
             high_scaled = scale_p(i.h)
             low_scaled = scale_p(i.l)
@@ -189,7 +191,7 @@ class environment:
         
         current_close = candles[-1].c
         scaled_close = scale_p(current_close)
-        clm = np.zeros(shape = (res_high+1))
+        clm = np.zeros(shape = (self.res_high+1))
         clm[scaled_close] = 1
         image.append(clm)
         
