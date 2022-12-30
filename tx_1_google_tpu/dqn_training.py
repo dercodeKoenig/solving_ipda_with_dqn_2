@@ -54,8 +54,6 @@ def proc_chart(x):
     
     x5 = tf.keras.layers.Conv2D(64, 9,activation="relu", padding="same")(x1)
     x1 = tf.keras.layers.Concatenate()([x1,x5])
-    x5 = tf.keras.layers.Conv2D(64, 9,activation="relu", padding="same")(x1)
-    x1 = tf.keras.layers.Concatenate()([x1,x5])
     x1 = tf.keras.layers.Dense(64)(x1)
     
     x1 = tf.transpose(x1,perm=[0, 2, 1, 3])
