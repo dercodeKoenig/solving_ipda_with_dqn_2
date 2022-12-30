@@ -30,10 +30,10 @@ target_model_sync = 100
 batch_size = 64
 
 #for environment
-dlen = 160
+dlen = 120
 pos_size = 0.02 * 100000
 comm = 15/100000
-res_high = 110
+res_high = 100
 
 
 
