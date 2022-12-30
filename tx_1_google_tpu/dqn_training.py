@@ -12,7 +12,7 @@ import random
 import cv2
 import pickle
 
-data_dir = "../achive"
+data_dir = "../archive"
 name = "dqn_trading_transformer_small"
 #resume = True
 resume = False
