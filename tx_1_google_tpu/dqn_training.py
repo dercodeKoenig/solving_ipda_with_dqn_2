@@ -23,7 +23,7 @@ warmup_steps = 1000
 
 #for dqn
 lr = 0.0001
-memory_size = 100000
+memory_size = 200000
 gamma = 0.95
 exploration = 0.02
 target_model_sync = 100
