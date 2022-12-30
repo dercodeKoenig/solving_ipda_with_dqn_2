@@ -36,8 +36,6 @@ comm = 15/100000
 res_high = 100
 
 
-
-
 tf.keras.backend.clear_session()
 tpu = tf.distribute.cluster_resolver.TPUClusterResolver.connect()
 strategy = tf.distribute.experimental.TPUStrategy(tpu)
