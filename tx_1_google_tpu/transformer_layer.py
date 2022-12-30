@@ -1,3 +1,5 @@
+import tensorflow as tf
+
 class TransformerBlock(tf.keras.layers.Layer):
     def __init__(self, embed_dim, num_heads, ff_dim, rate=0.05, **kwargs):
         self.embed_dim = embed_dim
