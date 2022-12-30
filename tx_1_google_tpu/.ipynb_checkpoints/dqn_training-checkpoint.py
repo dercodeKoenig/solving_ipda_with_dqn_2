@@ -17,23 +17,23 @@ name = "dqn_trading_transformer_small"
 #resume = True
 resume = False
 
-warmup_parallel = 8
-train_parallel = 8
+warmup_parallel = 16
+train_parallel = 16
 warmup_steps = 1000
 
 #for dqn
 lr = 0.0001
-memory_size = 20000
+memory_size = 100000
 gamma = 0.95
 exploration = 0.02
 target_model_sync = 100
 batch_size = 64
 
 #for environment
-dlen = 120
+dlen = 160
 pos_size = 0.02 * 100000
 comm = 15/100000
-res_high = 100
+res_high = 110
 
 
 
@@ -54,6 +54,8 @@ def proc_chart(x):
     
     x5 = tf.keras.layers.Conv2D(64, 9,activation="relu", padding="same")(x1)
     x1 = tf.keras.layers.Concatenate()([x1,x5])
+    x5 = tf.keras.layers.Conv2D(128, 9,activation="relu", padding="same")(x1)
+    x1 = tf.keras.layers.Concatenate()([x1,x5])
     x1 = tf.keras.layers.Dense(64)(x1)
     
     x1 = tf.transpose(x1,perm=[0, 2, 1, 3])
@@ -71,10 +73,11 @@ def proc_chart(x):
     
     
     x1 = PositionEmbedding(dlen+1, x1.shape[-1])(x1)
-    x1 = TransformerBlock(x1.shape[-1], 8, 256)(x1)
-    x1 = TransformerBlock(x1.shape[-1], 8, 256)(x1)
-    x1 = TransformerBlock(x1.shape[-1], 8, 256)(x1)
-    x1 = TransformerBlock(x1.shape[-1], 8, 256)(x1)
+    x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
+    x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
+    x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
+    x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
+    x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
 
     x1 = tf.keras.layers.Dense(512)(x1)
     x1 = tf.keras.layers.LeakyReLU()(x1)
