@@ -1,3 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 tx_2/dqn_trading_transformer_small.h5 filter=lfs diff=lfs merge=lfs -text
+test.txt filter=lfs diff=lfs merge=lfs -text
