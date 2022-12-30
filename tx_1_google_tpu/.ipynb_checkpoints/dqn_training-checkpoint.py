@@ -140,7 +140,7 @@ agent = DQNAgent(
     batch_size = batch_size, 
     target_model_sync = target_model_sync,
     exploration = exploration,
-    name=name+".h5")
+    name=name)
 
 if resume:
 	print("loading weights...")
