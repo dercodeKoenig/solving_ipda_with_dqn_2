@@ -71,10 +71,10 @@ def proc_chart(x):
     
     
     x1 = PositionEmbedding(dlen+1, x1.shape[-1])(x1)
-    x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
-    x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
-    x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
-    x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
+    x1 = TransformerBlock(x1.shape[-1], 8, 256)(x1)
+    x1 = TransformerBlock(x1.shape[-1], 8, 256)(x1)
+    x1 = TransformerBlock(x1.shape[-1], 8, 256)(x1)
+    x1 = TransformerBlock(x1.shape[-1], 8, 256)(x1)
 
     x1 = tf.keras.layers.Dense(512)(x1)
     x1 = tf.keras.layers.LeakyReLU()(x1)
