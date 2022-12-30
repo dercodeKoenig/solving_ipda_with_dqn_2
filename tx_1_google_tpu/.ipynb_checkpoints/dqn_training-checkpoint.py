@@ -13,7 +13,7 @@ import cv2
 import pickle
 
 data_dir = "../archive"
-name = "dqn_trading_transformer_small"
+name = "dqn_trading_transformer"
 #resume = True
 resume = False
 
@@ -54,7 +54,7 @@ def proc_chart(x):
     
     x5 = tf.keras.layers.Conv2D(64, 9,activation="relu", padding="same")(x1)
     x1 = tf.keras.layers.Concatenate()([x1,x5])
-    x5 = tf.keras.layers.Conv2D(128, 9,activation="relu", padding="same")(x1)
+    x5 = tf.keras.layers.Conv2D(64, 9,activation="relu", padding="same")(x1)
     x1 = tf.keras.layers.Concatenate()([x1,x5])
     x1 = tf.keras.layers.Dense(64)(x1)
     
@@ -73,7 +73,6 @@ def proc_chart(x):
     
     
     x1 = PositionEmbedding(dlen+1, x1.shape[-1])(x1)
-    x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
     x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
     x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
     x1 = TransformerBlock(x1.shape[-1], 12, 256)(x1)
